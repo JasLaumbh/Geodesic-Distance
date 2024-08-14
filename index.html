@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geodesic Distance Measurement</title>
+    <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+    <style>
+        html, body, #viewDiv {
+            padding: 0;
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+        #distanceDisplay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="distanceDisplay">Click on two points on the map to measure the geodesic distance.</div>
+    <div id="viewDiv"></div>
+
+    <script src="https://js.arcgis.com/4.28/"></script>
+    <script>
+        require([
+            "esri/Map",
+            "esri/views/MapView",
+            "esri/Graphic",
+            "esri/geometry/geometryEngine",
+            "esri/geometry/Point",
+            "esri/geometry/Polyline",
+            "esri/symbols/SimpleMarkerSymbol",
+            "esri/symbols/SimpleLineSymbol"
+        ], function (Map, MapView, Graphic, geometryEngine, Point, Polyline, SimpleMarkerSymbol, SimpleLineSymbol) {
+
+            const map = new Map({
+                basemap: "streets-navigation-vector"
+            });
+
+            const view = new MapView({
+                container: "viewDiv",
+                map: map,
+                center: [0, 0],
+                zoom: 2
+            });
+
+            const markerSymbol = new SimpleMarkerSymbol({
+                color: [226, 119, 40],
+                outline: {
+                    color: [255, 255, 255],
+                    width: 2
+                }
+            });
+
+            const lineSymbol = new SimpleLineSymbol({
+                color: [226, 119, 40],
+                width: 2
+            });
+
+            let points = [];
+
+            view.on("click", function (event) {
+                if (points.length < 2) {
+                    const point = new Point({
+                        longitude: event.mapPoint.longitude,
+                        latitude: event.mapPoint.latitude
+                    });
+
+                    const pointGraphic = new Graphic({
+                        geometry: point,
+                        symbol: markerSymbol
+                    });
+
+                    view.graphics.add(pointGraphic);
+                    points.push(point);
+
+                    if (points.length === 2) {
+                        measureGeodesicDistance(points[0], points[1]);
+                    }
+                }
+            });
+
+            function measureGeodesicDistance(point1, point2) {
+                const line = new Polyline({
+                    paths: [[
+                        [point1.longitude, point1.latitude],
+                        [point2.longitude, point2.latitude]
+                    ]]
+                });
+
+                const lineGraphic = new Graphic({
+                    geometry: line,
+                    symbol: lineSymbol
+                });
+
+                view.graphics.add(lineGraphic);
+
+                const geodesicDistance = geometryEngine.geodesicLength(line, "kilometers");
+                document.getElementById("distanceDisplay").innerHTML = `Geodesic Distance: ${geodesicDistance.toFixed(2)} km`;
+            }
+        });
+    </script>
+</body>
+</html>
