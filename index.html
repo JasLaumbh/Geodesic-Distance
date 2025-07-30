@@ -1,114 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geodesic Distance Measurement</title>
-    <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
-    <style>
-        html, body, #viewDiv {
-            padding: 0;
-            margin: 0;
-            height: 100%;
-            width: 100%;
-        }
-        #distanceDisplay {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 10px;
-            background-color: rgba(255, 255, 255, 0.8);
-            border-radius: 4px;
-            font-size: 14px;
-            font-family: Arial, sans-serif;
-            z-index: 10;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Geodesic Distance Measurement</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css">
+  <style>
+    html, body, #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    #distanceDisplay {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px;
+      background-color: rgba(255, 255, 255, 0.85);
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+      z-index: 10;
+      max-width: 90%;
+    }
+
+    #resetBtn {
+      position: absolute;
+      bottom: 20px; /* moved from top to bottom */
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      font-size: 14px;
+      border: none;
+      background-color: #e67728;
+      color: white;
+      cursor: pointer;
+      border-radius: 4px;
+      z-index: 10;
+    }
+
+    #resetBtn:hover {
+      background-color: #cc6619;
+    }
+  </style>
 </head>
 <body>
-    <div id="distanceDisplay">Click on two points on the map to measure the geodesic distance.</div>
-    <div id="viewDiv"></div>
+  <div id="distanceDisplay">Click on two points on the map to measure the geodesic distance.</div>
+  <button id="resetBtn">Reset</button>
+  <div id="viewDiv"></div>
 
-    <script src="https://js.arcgis.com/4.28/"></script>
-    <script>
-        require([
-            "esri/Map",
-            "esri/views/MapView",
-            "esri/Graphic",
-            "esri/geometry/geometryEngine",
-            "esri/geometry/Point",
-            "esri/geometry/Polyline",
-            "esri/symbols/SimpleMarkerSymbol",
-            "esri/symbols/SimpleLineSymbol"
-        ], function (Map, MapView, Graphic, geometryEngine, Point, Polyline, SimpleMarkerSymbol, SimpleLineSymbol) {
+  <script src="https://js.arcgis.com/4.28/"></script>
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/Graphic",
+      "esri/geometry/geometryEngine",
+      "esri/geometry/Point",
+      "esri/geometry/Polyline",
+      "esri/symbols/SimpleMarkerSymbol",
+      "esri/symbols/SimpleLineSymbol",
+      "esri/symbols/TextSymbol",
+      "esri/rest/locator"
+    ], function (
+      Map, MapView, Graphic, geometryEngine, Point, Polyline,
+      SimpleMarkerSymbol, SimpleLineSymbol, TextSymbol, locator
+    ) {
+      const map = new Map({
+        basemap: "streets-navigation-vector"
+      });
 
-            const map = new Map({
-                basemap: "streets-navigation-vector"
-            });
+      const view = new MapView({
+        container: "viewDiv",
+        map: map,
+        center: [0, 0],
+        zoom: 2
+      });
 
-            const view = new MapView({
-                container: "viewDiv",
-                map: map,
-                center: [0, 0],
-                zoom: 2
-            });
+      const locatorUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
-            const markerSymbol = new SimpleMarkerSymbol({
-                color: [226, 119, 40],
-                outline: {
-                    color: [255, 255, 255],
-                    width: 2
-                }
-            });
+      const markerSymbol = new SimpleMarkerSymbol({
+        color: [226, 119, 40],
+        outline: {
+          color: [255, 255, 255],
+          width: 2
+        }
+      });
 
-            const lineSymbol = new SimpleLineSymbol({
-                color: [226, 119, 40],
-                width: 2
-            });
+      const lineSymbol = new SimpleLineSymbol({
+        color: [226, 119, 40],
+        width: 2
+      });
 
-            let points = [];
+      let points = [];
 
-            view.on("click", function (event) {
-                if (points.length < 2) {
-                    const point = new Point({
-                        longitude: event.mapPoint.longitude,
-                        latitude: event.mapPoint.latitude
-                    });
+      view.on("click", function (event) {
+        if (points.length < 2) {
+          const point = new Point({
+            longitude: event.mapPoint.longitude,
+            latitude: event.mapPoint.latitude
+          });
 
-                    const pointGraphic = new Graphic({
-                        geometry: point,
-                        symbol: markerSymbol
-                    });
+          const pointGraphic = new Graphic({
+            geometry: point,
+            symbol: markerSymbol
+          });
 
-                    view.graphics.add(pointGraphic);
-                    points.push(point);
+          const labelSymbol = new TextSymbol({
+            text: points.length === 0 ? "Start Point" : "End Point",
+            color: "black",
+            font: {
+              size: 12,
+              family: "sans-serif"
+            },
+            haloColor: "white",
+            haloSize: "1px",
+            yoffset: -15
+          });
 
-                    if (points.length === 2) {
-                        measureGeodesicDistance(points[0], points[1]);
-                    }
-                }
-            });
+          const labelGraphic = new Graphic({
+            geometry: point,
+            symbol: labelSymbol
+          });
 
-            function measureGeodesicDistance(point1, point2) {
-                const line = new Polyline({
-                    paths: [[
-                        [point1.longitude, point1.latitude],
-                        [point2.longitude, point2.latitude]
-                    ]]
-                });
+          view.graphics.addMany([pointGraphic, labelGraphic]);
+          points.push(point);
 
-                const lineGraphic = new Graphic({
-                    geometry: line,
-                    symbol: lineSymbol
-                });
+          if (points.length === 2) {
+            measureAndLabel(points[0], points[1]);
+          }
+        }
+      });
 
-                view.graphics.add(lineGraphic);
-
-                const geodesicDistance = geometryEngine.geodesicLength(line, "kilometers");
-                document.getElementById("distanceDisplay").innerHTML = `Geodesic Distance: ${geodesicDistance.toFixed(2)} km`;
-            }
+      function measureAndLabel(point1, point2) {
+        const line = new Polyline({
+          paths: [[[point1.longitude, point1.latitude], [point2.longitude, point2.latitude]]]
         });
-    </script>
+
+        const lineGraphic = new Graphic({
+          geometry: line,
+          symbol: lineSymbol
+        });
+
+        view.graphics.add(lineGraphic);
+
+        const distance = geometryEngine.geodesicLength(line, "kilometers");
+
+        Promise.all([
+          locator.locationToAddress(locatorUrl, { location: point1 }).catch(() => null),
+          locator.locationToAddress(locatorUrl, { location: point2 }).catch(() => null)
+        ])
+        .then(([start, end]) => {
+          const startAddr = start?.address?.Match_addr || `${point1.latitude.toFixed(3)}, ${point1.longitude.toFixed(3)}`;
+          const endAddr = end?.address?.Match_addr || `${point2.latitude.toFixed(3)}, ${point2.longitude.toFixed(3)}`;
+          document.getElementById("distanceDisplay").innerHTML =
+            `<strong>From:</strong> ${startAddr}<br/>
+             <strong>To:</strong> ${endAddr}<br/>
+             <strong>Distance:</strong> ${distance.toFixed(2)} km`;
+        });
+      }
+
+      document.getElementById("resetBtn").addEventListener("click", function () {
+        view.graphics.removeAll();
+        points = [];
+        // Don't clear distance display — keep the last result visible
+      });
+    });
+  </script>
 </body>
 </html>
